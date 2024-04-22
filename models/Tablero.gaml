@@ -1,7 +1,5 @@
 /**
-* Name: Tablero
-* Based on the internal empty template. 
-* Author: Alvaro
+* Name: Tablero 
 * Tags: 
 */
 
