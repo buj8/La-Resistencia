@@ -402,14 +402,14 @@ experiment Game type: gui {
 			}
 			
 			// En caso de que sea la fase de votación tendremos un círculo con el estado de los votos
-			graphics VotingCircle visible: current_phase = VOTING_TEAM or current_phase = VOTING_COUNT {
+			graphics VotingCircle visible: current_phase >= VOTING_TEAM or current_phase <= VOTING_COUNT {
 				draw geometry:circle(120/size) color: color_info at: {size*10/2, size*10/2};
 				draw string("Votos a favor:   " + votes_favor) at: {size*17/4, size*19/4} font:default_font color:#white;
 				draw string("Votos en contra: " + votes_against) at: {size*17/4, size*21/4} font:default_font color:#orange;
 			}
 			
 			// En caso de que sea la fase de misión tendremos un círculo con los éxitos y sabotajes
-			graphics MissionsCircle visible: current_phase > IN_MISSION and current_mission != 0 {
+			graphics MissionsCircle visible: current_phase >= IN_MISSION and current_mission != 0 {
 				draw geometry:circle(120/size) color: color_info at: {size*10/2, size*10/2};
 				draw string("Éxitos		: " + mission_good) at: {size*17/4, size*19/4} font:default_font color:#white;
 				draw string("Sabotajes	: " + mission_bad) at: {size*17/4, size*21/4} font:default_font color:#orange;
