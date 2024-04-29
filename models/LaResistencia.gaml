@@ -89,16 +89,61 @@ global {
 	rgb color_info <- rgb(96, 101, 130);
 	rgb color_resistance <- rgb(152, 160, 206);
 	rgb color_spies <- rgb(255, 140, 58);
-	
-	
-	reflex end_game when: current_mission >= 6 {
+
+
+	reflex reset_game when: current_mission = -1 {
 		do pause;
+		current_mission <- -2;
 	}
+	
 }
 
 species Board {
 	
 	// Métodos del agente Tablero
+	
+	action start_game {
+		// Empezamos en una fase ficticia 0
+		current_mission <- 0;
+		
+		// Empezamos en el final de la fase ficticia
+		current_phase <- END_PHASE;
+		
+		// Inicializamos la votación
+		votes_favor <- 0;
+		votes_against <- 0;
+		
+		missions_succeeded <- 0;
+		missions_failed <- 0;
+		mission_total <- 0;
+		mission_good <- 0;
+		mission_bad <- 0;
+		
+		// Elegimos un líder al azar
+		leader_index <- rnd(n_players - 1);
+		players[leader_index].is_leader <- true;
+		
+		
+		// Calculamos el número de espías
+		switch n_players {
+			match 5 	{ n_spies <- 2;}
+			match 6 	{ n_spies <- 2;}
+			match 7 	{ n_spies <- 3;}
+			match 8 	{ n_spies <- 3;}
+			match 9 	{ n_spies <- 3;}
+			match 10 	{ n_spies <- 4;}	
+		}
+			
+		// Añadimos los espías
+		spies <- n_spies among players;
+		loop i over: spies {
+			i.is_spy <- true;
+		}
+		
+		// Seleccionamos la distribución de jugadores
+		players_per_mission <- missions_map[n_players];
+		
+	}
 	
 	action start_round {
 		total_votes <- 0;
@@ -116,13 +161,30 @@ species Board {
 		
 		
 		players_per_mission <- missions_map[n_players];
-		do pick_next_leader;
 	}
+	
+	action reset_stats {
+		votes_favor <- 0;
+		votes_against <- 0;
+		missions_succeeded <- 0;
+		missions_failed <- 0;
+		mission_total <- 0;
+		mission_good <- 0;
+		mission_bad <- 0;
+		loop i over: spies {
+			i.is_spy <- false;
+		}
+		spies <- n_spies among players;
+		loop i over: spies {
+			i.is_spy <- true;
+		}
+	}	
 	
 	action pick_next_leader {
 		players[leader_index].is_leader <- false;
 		leader_index <- (leader_index + 1) mod n_players;
 		players[leader_index].is_leader <- true;
+		write("[BOARD] NEW LEADER: " + players[leader_index].name) color: #white;
 	}
 	
 	action propose_team {
@@ -137,8 +199,10 @@ species Board {
 		 loop p over: proposed_team {
 		 	p.proposed_for_team <- false;
 		 }
+		 write("[BOARD] Proposed team:") color: #white;
 		 proposed_team <- players_per_mission[current_mission] among players;
 		 loop p over: proposed_team {
+		 	write("\t" + p.name) color: p.is_spy ? #gamaorange : #royalblue;
 		 	p.proposed_for_team <- true;
 		 }
 		 
@@ -170,6 +234,7 @@ species Board {
 	action perform_mission {
 		mission_good <- 0;
 		mission_bad <- 0;
+		mission_total <- 0;
 		
 		ask target: proposed_team {
 			// Pedir al equipo que ejecute la misión
@@ -182,7 +247,7 @@ species Board {
 		 */
 		 
 		 mission_total <- players_per_mission[current_mission]; 
-		 mission_good <- rnd(players_per_mission[mission_total]);
+		 mission_good <- rnd(mission_total);
 		 mission_bad <- mission_total - mission_good;
 	}
 	
@@ -196,45 +261,13 @@ species Board {
 	
 
 	action end_game {
-		current_mission <- 6;
+		current_mission <- 0;
+		current_phase <- END_PHASE;
 	}
 	
 	
 	init {	
-		// Empezamos en una fase ficticia 0
-		current_mission <- 0;
-		
-		// Empezamos en el final de la fase ficticia
-		current_phase <- END_PHASE;
-		
-		// Inicializamos la votación
-		votes_favor <- 0;
-		votes_against <- 0;
-		
-		// Elegimos un líder al azar
-		leader_index <- rnd(n_players - 1);
-		players[leader_index].is_leader <- true;
-		
-		
-		// Calculamos el número de espías
-		switch n_players {
-			match 5 	{ n_spies <- 2;}
-			match 6 	{ n_spies <- 2;}
-			match 7 	{ n_spies <- 3;}
-			match 8 	{ n_spies <- 3;}
-			match 9 	{ n_spies <- 3;}
-			match 10 	{ n_spies <- 4;}	
-		}
-			
-		// Añadimos los espías
-		spies <- n_spies among players;
-		loop i over: spies {
-			i.is_spy <- true;
-		}
-		
-		// Seleccionamos la distribución de jugadores
-		players_per_mission <- missions_map[n_players];
-		
+		do start_game;
 	}
 	
 
@@ -242,48 +275,62 @@ species Board {
 	
 	reflex start_new_round when: current_phase = END_PHASE {
 	    do start_round;
-	    current_phase <- current_phase + 1;
+	    write("[BOARD] Starting round " + current_mission) color: #white;
 	}
 	
 	reflex team_proposal  when: current_phase = PICKING_TEAM {
 		do propose_team;
-		current_phase <- current_phase + 1;
+		current_phase <- VOTING_TEAM;
 	}
 	
 	reflex team_voting when: current_phase = VOTING_TEAM {
+		write("[BOARD] Voting team") color: #white;
 		do collect_votes;
-		current_phase <- current_phase + 1;
+		current_phase <- VOTING_COUNT;
 	}
 	
 	reflex voting_result when: current_phase = VOTING_COUNT
 	 	{
 			if votes_against <= votes_favor {
-				current_phase <- current_phase - 1;
+				write("[BOARD] Team rejected") color: #white;
+				do pick_next_leader;
+				current_phase <- PICKING_TEAM;
 				rejected_teams <- rejected_teams + 1;
 			}
 			else {
-				current_phase <- current_phase + 1;
+				write("[BOARD] Team accepted") color: #white;
+				current_phase <- IN_MISSION;
 			}
 		}
 	
 	reflex execute_mission when: current_phase = IN_MISSION {
+		write("[BOARD] Executing mission") color: #white;
 		do perform_mission;
-		current_phase <- current_phase + 1;
+		current_phase <- MISSION_RESULTS;
 	}
 	
 	reflex show_mission_result when: current_phase = MISSION_RESULTS {
 		do evaluate_mission;
-		current_phase <- current_phase + 1;
+		if mission_bad > 0 {
+			write("[BOARD] Mission failed") color: #white;
+		}
+		current_phase <- END_PHASE;
 	}
 	
 	reflex resistance_wins when: missions_succeeded >= 3 {
+		write("[BOARD] RESISTANCE WINS!") color: #white;
 		do end_game;
 	}
 	
-	reflex spies_win when: missions_failed >= 3 {
+	reflex spies_win when: missions_failed >= 3 or rejected_teams >= 5 {
+		write("[BOARD] SPIES WIN!") color: #white;
+		do reset_stats;
 		do end_game;
 	}
 	
+	reflex new_game when: current_mission = -2{
+		do start_game;
+	}
 }
 
 grid BoardGrid height:size width: size {
@@ -362,7 +409,7 @@ experiment Game type: gui {
 			}
 			
 			// En caso de que sea la fase de misión tendremos un círculo con los éxitos y sabotajes
-			graphics MissionsCircle visible: current_phase = IN_MISSION or current_phase = MISSION_RESULTS {
+			graphics MissionsCircle visible: current_phase > IN_MISSION and current_mission != 0 {
 				draw geometry:circle(120/size) color: color_info at: {size*10/2, size*10/2};
 				draw string("Éxitos		: " + mission_good) at: {size*17/4, size*19/4} font:default_font color:#white;
 				draw string("Sabotajes	: " + mission_bad) at: {size*17/4, size*21/4} font:default_font color:#orange;
