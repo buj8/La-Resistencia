@@ -7,26 +7,42 @@
 model LaResistencia
 
 global {
+	
+	// VARIABLES LÓGICAS DEL JUEGO
+	
+	int current_mission;
 	int current_phase;
-	int current_stage;
 	/*  Para la entrega parcial al no tener iniciativa los agentes "jugador"
 	 *  restringiremos las partes de la misión a formación de equipos
 	 *  y ejecución de la misión. Lo dejamos en este formato para implementar
 	 *  el uso de cartas de los jugadores para la siguiente entrega.
 	 */
-	list<string> stages <-	[
-							"Forming teams...",
-							"In mission..."
+	list<string> phases <-	[
+							"Formando equipos...",
+							"En la misión..."
 							];
 	int rejected_teams;
 	Board board;
 	int n_players;
 	int n_spies;
 	int leader_index;
-	int size <- 10;
+
 	list<Player> players;
 	list<Player> spies;
+	
 	list<Player> proposed_team;
+	
+	int votes_favor;
+	int votes_against;
+	int total_votes;
+	
+	int mission_good;
+	int mission_bad;
+	int mission_total;
+	
+	int missions_failed;
+	int missions_succeeded;
+	
 	list<string> names <-   [
 						    "Ana",
 						    "Bruno",
@@ -39,12 +55,6 @@ global {
 						    "Irene",
 						    "Jose"
 							];
-	font default_font <- font('Default', 15, #bold);
-	rgb color_background <- rgb(38, 40, 52);
-	rgb color_info <- rgb(96, 101, 130);
-	rgb color_resistance <- rgb(152, 160, 206);
-	rgb color_spies <- rgb(255, 140, 58);
-	
 	map<int, list<int>> missions_map <- map([
             5  :: [2, 3, 2, 3, 3],
             6  :: [2, 3, 4, 3, 4],
@@ -53,17 +63,33 @@ global {
             9  :: [3, 4, 4, 5, 5],
             10 :: [3, 4, 4, 5, 5]
         ]);
-         
    	list<int> players_per_mission;
+   	
+   	
+   	
+   	// VARIABLES ESTÉTICAS DEL JUEGO
+   	
+   	int size <- 10;
+	font default_font <- font('Default', 15, #bold);
+	rgb color_background <- rgb(38, 40, 52);
+	rgb color_info <- rgb(96, 101, 130);
+	rgb color_resistance <- rgb(152, 160, 206);
+	rgb color_spies <- rgb(255, 140, 58);
+	
+	
 }
 
 species Board {
 	init {	
 		// Empezamos en la fase 1
-		current_phase <- 1;
+		current_mission <- 1;
 		
 		// Empezamos en la parte de selección de equipos
-		current_stage <- 0;
+		current_phase <- 0;
+		
+		// Inicializamos la votación
+		votes_favor <- 0;
+		votes_against <- 0;
 		
 		// Elegimos un líder al azar
 		leader_index <- rnd(n_players - 1);
@@ -90,6 +116,8 @@ species Board {
 		players_per_mission <- missions_map[n_players];
 	}
 	
+	
+	
 }
 
 grid BoardGrid height:size width: size {
@@ -101,6 +129,7 @@ species Player {
 	bool is_spy <- false;
 	bool is_leader <- false;
 	bool proposed_for_team <- false;
+	
 	/* El aspecto de los jugadores en el tablero será en forma de círculos de colores
 	 * - Si es el líder actual tendrá borde DORADO, si no será NEGRO
 	 * - Si está en la resistencia el círculo será AZUL, si no será NARANJA
@@ -149,15 +178,29 @@ experiment Game type: gui {
 			species Player aspect: player_aspect;
 			
 			// Ponemos la info de la ronda en el centro
-			graphics RoundInfo{
-				draw string("FASE " + current_phase) at: {size/5, 2+(size/4)} font:default_font color:#white;
-				string stage_info <- stages[current_stage];
+			graphics RoundInfo {
+				draw string("[ MISIÓN " + current_mission + " ]") at: {size/5, 2+(size/4)} font:default_font color:#white;
+				string stage_info <- phases[current_phase];
 				draw string(stage_info) at: {size/5, 6+(size/5)} font:default_font color:#white; 
 				draw string("Jugadores necesarios: " + players_per_mission[current_phase]) at: {size/5, 10+(size/5)} font:default_font color:#white; 
 				draw string("Equipos rechazados: " + rejected_teams + "/5") at: {size/5, 14+(size/5)} font:default_font color:#white;
+				draw string("Misiones completadas: " + missions_succeeded) at: {size/5, 18+(size/5)} font:default_font color:#white;
+				draw string("Misiones fallidas: " + missions_failed) at: {size/5, 22+(size/5)} font:default_font color:#white;
 			}
 			
+			// En caso de que sea la fase de votación tendremos un círculo con el estado de los votos
+			graphics VotingCircle visible: current_phase = 0 {
+				draw geometry:circle(120/size) color: color_info at: {size*10/2, size*10/2};
+				draw string("Votos a favor:   " + votes_favor) at: {size*17/4, size*19/4} font:default_font color:#white;
+				draw string("Votos en contra: " + votes_against) at: {size*17/4, size*21/4} font:default_font color:#orange;
+			}
 			
+			// En caso de que sea la fase de misión tendremos un círculo con los éxitos y sabotajes
+			graphics MissionsCircle visible: current_phase = 1 {
+				draw geometry:circle(120/size) color: color_info at: {size*10/2, size*10/2};
+				draw string("Éxitos		: " + mission_good) at: {size*17/4, size*19/4} font:default_font color:#white;
+				draw string("Sabotajes	: " + mission_bad) at: {size*17/4, size*21/4} font:default_font color:#orange;
+			}
 		}
 	}
 }
