@@ -8,11 +8,21 @@ model LaResistencia
 
 global {
 	int current_phase;
-	bool team_formed;
+	int current_stage;
+	/*  Para la entrega parcial al no tener iniciativa los agentes "jugador"
+	 *  restringiremos las partes de la misión a formación de equipos
+	 *  y ejecución de la misión. Lo dejamos en este formato para implementar
+	 *  el uso de cartas de los jugadores para la siguiente entrega.
+	 */
+	list<string> stages <-	[
+							"Forming teams...",
+							"In mission..."
+							];
 	int rejected_teams;
 	Board board;
 	int n_players;
 	int n_spies;
+	int leader_index;
 	int size <- 10;
 	list<Player> players;
 	list<Player> spies;
@@ -48,6 +58,37 @@ global {
 }
 
 species Board {
+	init {	
+		// Empezamos en la fase 1
+		current_phase <- 1;
+		
+		// Empezamos en la parte de selección de equipos
+		current_stage <- 0;
+		
+		// Elegimos un líder al azar
+		leader_index <- rnd(n_players - 1);
+		players[leader_index].is_leader <- true;
+		
+		
+		// Calculamos el número de espías
+		switch n_players {
+			match 5 	{ n_spies <- 2;}
+			match 6 	{ n_spies <- 2;}
+			match 7 	{ n_spies <- 3;}
+			match 8 	{ n_spies <- 3;}
+			match 9 	{ n_spies <- 3;}
+			match 10 	{ n_spies <- 4;}	
+		}
+			
+		// Añadimos los espías
+		spies <- n_spies among players;
+		loop i over: spies {
+			i.is_spy <- true;
+		}
+		
+		// Seleccionamos la distribución de jugadores
+		players_per_mission <- missions_map[n_players];
+	}
 	
 }
 
@@ -60,6 +101,11 @@ species Player {
 	bool is_spy <- false;
 	bool is_leader <- false;
 	bool proposed_for_team <- false;
+	/* El aspecto de los jugadores en el tablero será en forma de círculos de colores
+	 * - Si es el líder actual tendrá borde DORADO, si no será NEGRO
+	 * - Si está en la resistencia el círculo será AZUL, si no será NARANJA
+	 * - Si está propuesto para el equipo se añadirá un borde ROJO extra
+	 * */
 	aspect player_aspect {
 		if proposed_for_team {
 			draw geometry:circle(54/size) color: #red;
@@ -75,16 +121,14 @@ experiment Game type: gui {
 	parameter "Number of players" var:n_players <- 5 min:5 max:10;
 	
 	init {
-		// Empezamos en la fase 1
-		current_phase <- 1;
-		
-		// Empezamos en la fase de formación de equipo
-		team_formed <- false;
-		
 		// Creamos los jugadores 
 		create Player number: n_players;
 		players <- list(Player);
-		
+				
+		// Creamos nuestro tablero
+		create Board;
+
+		// Obtenemos las posiciones de cada jugador en el tablero en un corro
 		float centerX <- size*10/2;
 		float centerY <- size*10/2; 
 		int radius <-  size*3;
@@ -94,28 +138,7 @@ experiment Game type: gui {
 			float angle <- 360 * (i / n_players) - 90;
 			players[i].location <- {centerX + radius * cos(angle), centerY + radius * sin(angle)};
 		}
-		
-		// Seleccionamos al primer líder
-		players[0].is_leader <- true;
 
-		// Calculamos el número de espías
-		switch n_players {
-			match 5 	{ n_spies <- 2;}
-			match 6 	{ n_spies <- 2;}
-			match 7 	{ n_spies <- 3;}
-			match 8 	{ n_spies <- 3;}
-			match 9 	{ n_spies <- 3;}
-			match 10 	{ n_spies <- 4;}	
-		}
-		
-		// Añadimos los espías
-		spies <- n_spies among players;
-		loop i over: spies {
-			i.is_spy <- true;
-		}
-		
-		// Seleccionamos la distribución de jugadores
-		players_per_mission <- missions_map[n_players];
 		
 	}
 	
@@ -128,11 +151,13 @@ experiment Game type: gui {
 			// Ponemos la info de la ronda en el centro
 			graphics RoundInfo{
 				draw string("FASE " + current_phase) at: {size/5, 2+(size/4)} font:default_font color:#white;
-				string stage <- team_formed ? "En la misión..." : "Seleccionando equipo...";
-				draw string(stage) at: {size/5, 6+(size/5)} font:default_font color:#white; 
+				string stage_info <- stages[current_stage];
+				draw string(stage_info) at: {size/5, 6+(size/5)} font:default_font color:#white; 
 				draw string("Jugadores necesarios: " + players_per_mission[current_phase]) at: {size/5, 10+(size/5)} font:default_font color:#white; 
 				draw string("Equipos rechazados: " + rejected_teams + "/5") at: {size/5, 14+(size/5)} font:default_font color:#white;
 			}
+			
+			
 		}
 	}
 }
