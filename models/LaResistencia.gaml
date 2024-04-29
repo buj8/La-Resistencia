@@ -80,6 +80,50 @@ global {
 }
 
 species Board {
+	
+	// Métodos del agente Tablero
+	
+	action start_round {
+		current_phase <- 0;
+		rejected_teams <- 0;
+		do pick_next_leader;
+	}
+	
+	action pick_next_leader {
+		players[leader_index].is_leader <- false;
+		leader_index <- (leader_index + 1) mod n_players;
+		players[leader_index].is_leader <- true;
+	}
+	
+	action propose_team {
+		if (current_phase = 0) {
+			ask players[leader_index] {
+				// Pedimos al líder que proponga un equipo
+			}
+		}
+	}
+	
+	action collect_votes {
+		total_votes <- 0;
+		votes_favor <- 0;
+		votes_against <- 0;
+	
+		ask target: players {
+			// Pedir a los jugadores que voten
+		}
+	}
+	
+	action perform_mission {
+		mission_good <- 0;
+		mission_bad <- 0;
+		
+		ask target: proposed_team {
+			// Pedir al equipo que ejecute la misión
+		}
+	}
+	
+	
+	
 	init {	
 		// Empezamos en la fase 1
 		current_mission <- 1;
@@ -114,8 +158,10 @@ species Board {
 		
 		// Seleccionamos la distribución de jugadores
 		players_per_mission <- missions_map[n_players];
+		
 	}
 	
+
 	
 	
 }
